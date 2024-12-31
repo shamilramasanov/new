@@ -164,7 +164,7 @@ export default async function handle(req, res) {
         }
 
         // Преобразуем данные спецификации
-        const specifications = rows.map(row => {
+        const newSpecifications = rows.map(row => {
           const isService = !row.code; // Если нет кода, считаем что это услуга
           return {
             name: row.name,
@@ -183,7 +183,7 @@ export default async function handle(req, res) {
 
         // Создаем спецификации в базе данных
         const createdSpecs = await prisma.$transaction(
-          specifications.map(spec => 
+          newSpecifications.map(spec => 
             prisma.specification.create({
               data: spec,
               select: {
