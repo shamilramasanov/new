@@ -5,59 +5,50 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      // Получаем все спецификации для данного автомобиля
-      const specifications = await prisma.specification.findMany({
+      console.log('Fetching repairs for vehicle:', id);
+      
+      // Сначала получаем все договоры для автомобиля
+      const contracts = await prisma.contract.findMany({
         where: {
-          contract: {
-            vehicleId: id,
-            kekv: {
-              code: '2240'
-            }
+          vehicleId: id,
+          kekv: {
+            code: '2240'
           }
         },
         include: {
-          contract: {
-            include: {
-              kekv: true,
-              acts: {
-                select: {
-                  id: true,
-                  number: true,
-                  date: true,
-                  status: true,
-                  totalAmount: true
-                }
-              }
+          kekv: true,
+          acts: {
+            select: {
+              id: true,
+              number: true,
+              date: true,
+              status: true,
+              totalAmount: true
             }
-          }
+          },
+          specifications: true
         },
         orderBy: {
-          contract: {
-            startDate: 'desc'
-          }
+          startDate: 'desc'
         }
       });
 
-      // Группируем спецификации по договорам
-      const contractsMap = new Map();
-      specifications.forEach(spec => {
-        if (!contractsMap.has(spec.contract.id)) {
-          contractsMap.set(spec.contract.id, {
-            id: spec.contract.id,
-            number: spec.contract.number,
-            contractor: spec.contract.contractor,
-            startDate: spec.contract.startDate,
-            endDate: spec.contract.endDate,
-            status: spec.contract.status,
-            kekv: {
-              code: spec.contract.kekv.code,
-              name: spec.contract.kekv.name
-            },
-            acts: spec.contract.acts,
-            specifications: []
-          });
-        }
-        contractsMap.get(spec.contract.id).specifications.push({
+      console.log('Found contracts:', contracts.length);
+
+      // Преобразуем договоры в нужный формат
+      const repairsWithTotals = contracts.map(contract => ({
+        id: contract.id,
+        number: contract.number,
+        contractor: contract.contractor,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        status: contract.status,
+        kekv: {
+          code: contract.kekv.code,
+          name: contract.kekv.name
+        },
+        acts: contract.acts,
+        specifications: contract.specifications.map(spec => ({
           id: spec.id,
           name: spec.name,
           code: spec.code,
@@ -70,19 +61,24 @@ export default async function handler(req, res) {
           vehicleVin: spec.vehicleVin,
           vehicleLocation: spec.vehicleLocation,
           amount: spec.price * spec.quantity * (spec.type === 'service' ? spec.serviceCount : 1)
-        });
-      });
-
-      // Преобразуем Map в массив и добавляем общую сумму для каждого договора
-      const repairsWithTotals = Array.from(contractsMap.values()).map(contract => ({
-        ...contract,
-        amount: contract.specifications.reduce((sum, spec) => sum + spec.amount, 0)
+        })),
+        amount: contract.specifications.reduce((sum, spec) => 
+          sum + (spec.price * spec.quantity * (spec.type === 'service' ? spec.serviceCount : 1)), 0)
       }));
 
+      console.log('Processed repairs data successfully');
       return res.json(repairsWithTotals);
     } catch (error) {
       console.error('Error fetching repairs:', error);
-      return res.status(500).json({ error: 'Failed to fetch repairs' });
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        meta: error.meta
+      });
+      return res.status(500).json({ 
+        error: 'Failed to fetch repairs',
+        details: error.message
+      });
     }
   }
 
