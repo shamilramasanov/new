@@ -1,0 +1,131 @@
+.container {
+  padding: 1rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.filters {
+  background-color: white;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.filterGroup {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.filterGroup:last-child {
+  margin-bottom: 0;
+}
+
+.filterItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filterItem label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.filterItem input {
+  padding: 0.375rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.filterItem input:focus {
+  outline: none;
+  border-color: #2563eb;
+  ring: 2px;
+  ring-color: #93c5fd;
+}
+
+.tableContainer {
+  background-color: white;
+  border-radius: 0.375rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.875rem;
+}
+
+.table th {
+  background-color: #f9fafb;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.table td {
+  color: #111827;
+}
+
+.amount {
+  text-align: right;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.viewButton,
+.printButton {
+  padding: 0.25rem 0.375rem;
+  font-size: 0.75rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.viewButton {
+  background-color: #2563eb;
+  color: white;
+}
+
+.viewButton:hover {
+  background-color: #1d4ed8;
+}
+
+.printButton {
+  background-color: #059669;
+  color: white;
+}
+
+.printButton:hover {
+  background-color: #047857;
+}

@@ -1,0 +1,208 @@
+// This is your Prisma schema file
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Модель для користувачів
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  budgets   Budget[] // Зв'язок з кошторисами
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Модель для кошторисів
+model Budget {
+  id          String     @id @default(cuid())
+  name        String     // Назва кошторису
+  type        String     // Тип кошторису (Загальний фонд, Спеціальний фонд)
+  year        Int        // Рік
+  date        DateTime   // Дата кошторису
+  description String?    // Опис кошторису
+  amount      Float      // Загальна сума кошторису
+  user        User       @relation(fields: [userId], references: [id])
+  userId      String
+  kekvs       BudgetKekv[]  // Зв'язок з КЕКВ
+  contracts   Contract[] // Зв'язок з договорами
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// Модель для КЕКВ
+model KEKV {
+  id          String     @id @default(cuid())
+  code        String     @unique // Код КЕКВ (наприклад, 2210)
+  name        String     // Назва (наприклад, "Предмети, матеріали, обладнання та інвентар")
+  budgets     BudgetKekv[]  // Зв'язок з кошторисами
+  contracts   Contract[] // Зв'язок з договорами
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// Зв'язок між кошторисом та КЕКВ
+model BudgetKekv {
+  id          String   @id @default(cuid())
+  budget      Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  budgetId    String
+  kekv        KEKV     @relation(fields: [kekvId], references: [id], onDelete: Cascade)
+  kekvId      String
+  amount      Float    // Сума по КЕКВ
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([budgetId, kekvId])
+}
+
+// Модель для автомобілів
+model Vehicle {
+  id          String    @id @default(cuid())
+  number      String    @unique // Бортовий номер
+  brand       String    // Марка
+  model       String    // Модель
+  vin         String?   // VIN-код
+  year        Int?      // Рік випуску
+  mileage     Int?      // Пробіг
+  location    String?   // Місце дислокації
+  imageUrl    String?   // URL фотографії
+  contracts   Contract[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Модель для договорів
+model Contract {
+  id            String          @id @default(cuid())
+  number        String?         // Номер договору (опціонально)
+  contractor    String          // Контрагент
+  amount        Float           // Сума договору
+  usedAmount    Float           @default(0) // Використана сума за актами
+  startDate     DateTime?       // Дата договору (опціонально)
+  endDate       DateTime?       // Дата закінчення (опціонально)
+  status        String          @default("PLANNED") // Статус договору
+  contractType  String          @default("DIRECT") // Тип договору (Прямий, Тендер)
+  dkCode        String          // Код ДК
+  dkName        String          // Назва за ДК
+  budget        Budget          @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  budgetId      String
+  kekv          KEKV           @relation(fields: [kekvId], references: [id], onDelete: Cascade)
+  kekvId        String
+  vehicle       Vehicle?        @relation(fields: [vehicleId], references: [id])
+  vehicleId     String?
+  specifications Specification[]
+  acts          Act[]          // Акти виконаних робіт
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+// Модель для специфікацій договору
+model Specification {
+  id              String    @id @default(cuid())
+  name            String    // Назва товару/послуги
+  code            String?   // Код товару (опціонально)
+  unit            String    // Одиниця виміру
+  quantity        Float     // Кількість
+  price           Float     // Ціна за одиницю
+  amount          Float     // Загальна сума
+  total           Float?    // Підсумкова сума з урахуванням кількості обслуговувань
+  serviceCount    Int?      // Кількість обслуговувань (для КЕКВ 2240)
+  section         String?   // Розділ (для КЕКВ 2240: "Послуги" або "Запчастини")
+  vehicleBrand    String?   // Марка автомобіля (для КЕКВ 2240)
+  vehicleVin      String?   // VIN-код або номер автомобіля (для КЕКВ 2240)
+  vehicleLocation String?   // Місце розташування автомобіля (для КЕКВ 2240)
+  contract        Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId      String
+  actItems      ActItem[] // Позиції в актах
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Модель для актів виконаних робіт
+model Act {
+  id            String    @id @default(cuid())
+  number        String?   // Номер акту (опціонально, заповняється при активації)
+  date          DateTime? // Дата акту (опціонально, заповняється при активації)
+  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId    String
+  actItems      ActItem[] // Позиції акту
+  totalAmount   Float     // Загальна сума
+  status        String    @default("PENDING") // Статус акту (PENDING - на погодженні, ACTIVE - активний, PAID - оплачено)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Модель для позицій акту
+model ActItem {
+  id              String        @id @default(cuid())
+  act             Act           @relation(fields: [actId], references: [id], onDelete: Cascade)
+  actId           String
+  specification   Specification @relation(fields: [specificationId], references: [id], onDelete: Cascade)
+  specificationId String
+  quantity        Float         // Фактична кількість
+  serviceCount    Int?          // Номер обслуговування (для послуг)
+  amount          Float         // Сума
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+// Модель для категорий складу
+model InventoryCategory {
+  id          String    @id @default(cuid())
+  name        String    // Название категории
+  code        String    @unique // Уникальный код категории
+  description String?   // Описание категории
+  parent      InventoryCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  parentId    String?
+  children    InventoryCategory[] @relation("CategoryHierarchy")
+  items       InventoryItem[]     // Связь с товарами
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Модель для единиц измерения
+model Unit {
+  id          String    @id @default(cuid())
+  name        String    // Название единицы измерения
+  code        String    @unique // Уникальный код
+  items       InventoryItem[] // Связь с товарами
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Модель для товаров на складе
+model InventoryItem {
+  id          String    @id @default(cuid())
+  name        String    // Название товара
+  code        String    @unique // Уникальный код товара
+  description String?   // Описание товара
+  quantity    Float     // Количество
+  minQuantity Float?    // Минимальное количество (для уведомлений)
+  price       Float?    // Цена за единицу
+  category    InventoryCategory @relation(fields: [categoryId], references: [id])
+  categoryId  String
+  unit        Unit      @relation(fields: [unitId], references: [id])
+  unitId      String
+  location    String?   // Место хранения
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Модель для движения товаров (приход/расход)
+model InventoryMovement {
+  id          String    @id @default(cuid())
+  type        String    // Тип движения (IN/OUT)
+  itemId      String    // ID товара
+  quantity    Float     // Количество
+  price       Float?    // Цена за единицу
+  document    String?   // Номер документа
+  description String?   // Описание операции
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
