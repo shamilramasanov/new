@@ -7,13 +7,10 @@ export default async function handler(req, res) {
     try {
       console.log('Fetching repairs for vehicle:', id);
       
-      // Сначала получаем все договоры для автомобиля
+      // Получаем все договоры для автомобиля
       const contracts = await prisma.contract.findMany({
         where: {
-          vehicleId: id,
-          kekv: {
-            code: '2240'
-          }
+          vehicleId: id
         },
         include: {
           kekv: true,
@@ -26,7 +23,11 @@ export default async function handler(req, res) {
               totalAmount: true
             }
           },
-          specifications: true
+          specifications: {
+            where: {
+              vehicleId: id // Фильтруем спецификации только для этого автомобиля
+            }
+          }
         },
         orderBy: {
           startDate: 'desc'
@@ -35,8 +36,11 @@ export default async function handler(req, res) {
 
       console.log('Found contracts:', contracts.length);
 
+      // Фильтруем договоры, оставляя только те, у которых есть спецификации для данного авто
+      const contractsWithSpecs = contracts.filter(contract => contract.specifications.length > 0);
+
       // Преобразуем договоры в нужный формат
-      const repairsWithTotals = contracts.map(contract => ({
+      const repairsWithTotals = contractsWithSpecs.map(contract => ({
         id: contract.id,
         number: contract.number,
         contractor: contract.contractor,
