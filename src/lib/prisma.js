@@ -9,11 +9,6 @@ try {
       db: {
         url: process.env.DATABASE_URL
       }
-    },
-    connectionTimeout: 30000,
-    pool: {
-      min: 0,
-      max: 10
     }
   })
 
