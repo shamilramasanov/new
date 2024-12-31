@@ -31,21 +31,10 @@ export default function NewContract() {
 
   // Вычисляем общую сумму спецификаций
   const totalAmount = useMemo(() => {
-    const servicesAmount = specifications
-      .filter(spec => spec.type === 'service')
-      .reduce((sum, spec) => {
-        const amount = parseFloat(spec.amount || 0) * (spec.serviceCount || 1);
-        return sum + amount;
-      }, 0);
-
-    const partsAmount = specifications
-      .filter(spec => spec.type === 'part')
-      .reduce((sum, spec) => {
-        const amount = parseFloat(spec.amount || 0);
-        return sum + amount;
-      }, 0);
-
-    return servicesAmount + partsAmount;
+    return specifications.reduce((sum, spec) => {
+      const baseAmount = parseFloat(spec.price || 0) * parseFloat(spec.quantity || 0);
+      return sum + (spec.type === 'service' ? baseAmount * (spec.serviceCount || 1) : baseAmount);
+    }, 0);
   }, [specifications]);
 
   // Обновляем formData.amount при изменении totalAmount
@@ -285,22 +274,19 @@ export default function NewContract() {
         </div>
 
         {/* Тип договора */}
-        <div>
-          <label htmlFor="contractType" className="block text-sm font-medium text-gray-700">
-            Тип договору
+        <div className="form-control w-full">
+          <label className="label">
+            <span className="label-text">Тип договору</span>
           </label>
           <select
-            id="contractType"
             name="contractType"
+            className="select select-bordered w-full"
             value={formData.contractType}
             onChange={handleChange}
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
             required
           >
-            {CONTRACT_TYPE_OPTIONS.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
+            {CONTRACT_TYPE_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option}</option>
             ))}
           </select>
         </div>

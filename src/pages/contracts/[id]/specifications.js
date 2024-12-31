@@ -8,6 +8,7 @@ import { colors } from '../../../core/theme/colors';
 import { formatMoney } from '../../../shared/utils/format';
 import { prisma } from '../../../lib/prisma';
 import { toast } from 'react-toastify';
+import CreateActModal from '../../../components/CreateActModal';
 import SpecificationDisplayRenderer2210 from '../../../components/specifications/2210/SpecificationDisplayRenderer';
 import SpecificationDisplayRenderer2240 from '../../../components/specifications/2240/SpecificationDisplayRenderer';
 import SpecificationDisplayRenderer3110 from '../../../components/specifications/3110/SpecificationDisplayRenderer';
@@ -32,6 +33,49 @@ export default function SpecificationsPage({ contract, specifications }) {
   const [isAddingSpec, setIsAddingSpec] = useState(false);
   const [specs, setSpecs] = useState(specifications);
   const [isLoading, setIsLoading] = useState(false);
+  const [showCreateActModal, setShowCreateActModal] = useState(false);
+
+  // Вычисляем сумму для спецификации
+  const calculateSpecTotal = (spec) => {
+    const baseAmount = spec.price * spec.quantity;
+    return spec.type === 'service' ? baseAmount * spec.serviceCount : baseAmount;
+  };
+
+  // Группируем спецификации по автомобилям и типу
+  const groupedSpecs = specifications.reduce((acc, spec) => {
+    const vehicleKey = spec.vehicleVin || 'no-vehicle';
+    
+    if (!acc[vehicleKey]) {
+      acc[vehicleKey] = {
+        vehicle: {
+          brand: spec.vehicleBrand || 'Не вказано',
+          vin: spec.vehicleVin || 'Не вказано',
+          location: spec.vehicleLocation || 'Не вказано'
+        },
+        services: [],
+        parts: []
+      };
+    }
+    
+    if (spec.type === 'service') {
+      acc[vehicleKey].services.push(spec);
+    } else {
+      acc[vehicleKey].parts.push(spec);
+    }
+    
+    return acc;
+  }, {});
+
+  // Вычисляем итоги для каждого автомобиля
+  Object.values(groupedSpecs).forEach(group => {
+    group.servicesTotal = group.services.reduce((sum, spec) => 
+      sum + calculateSpecTotal(spec), 0
+    );
+    group.partsTotal = group.parts.reduce((sum, spec) => 
+      sum + calculateSpecTotal(spec), 0
+    );
+    group.total = group.servicesTotal + group.partsTotal;
+  });
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -89,6 +133,14 @@ export default function SpecificationsPage({ contract, specifications }) {
             <p className="text-3xl font-semibold text-[${colors.neutral[900]}]">
               {formatMoney(contract.amount)}
             </p>
+            <div className="mt-4">
+              <Button 
+                onClick={() => setShowCreateActModal(true)}
+                className="bg-green-500 text-white hover:bg-green-600"
+              >
+                Створити акт
+              </Button>
+            </div>
           </div>
         </div>
       </Card>
@@ -145,11 +197,137 @@ export default function SpecificationsPage({ contract, specifications }) {
           )}
         </div>
 
-        <SpecificationRenderer 
-          specifications={specs} 
-          kekvCode={contract.kekv.code} 
-        />
+        {/* Отображение спецификаций по автомобилям */}
+        {Object.entries(groupedSpecs).map(([vehicleKey, group]) => (
+          <div key={vehicleKey} className="mb-8 p-4 border rounded-lg">
+            <h3 className="text-lg font-bold mb-4">
+              {group.vehicle.brand} ({group.vehicle.vin})
+              <span className="text-sm font-normal ml-2">
+                Розташування: {group.vehicle.location}
+              </span>
+            </h3>
+
+            {/* Услуги */}
+            {group.services.length > 0 && (
+              <div className="mb-4">
+                <h4 className="font-semibold mb-2">Послуги:</h4>
+                <table className="min-w-full">
+                  <thead>
+                    <tr>
+                      <th>Назва</th>
+                      <th>Од. вим.</th>
+                      <th>К-сть</th>
+                      <th>Ціна</th>
+                      <th>К-сть обсл.</th>
+                      <th>Сума</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.services.map(spec => (
+                      <tr key={spec.id}>
+                        <td>{spec.name}</td>
+                        <td>{spec.unit}</td>
+                        <td>{spec.quantity}</td>
+                        <td>{spec.price}</td>
+                        <td>{spec.serviceCount}</td>
+                        <td>{calculateSpecTotal(spec)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan="5" className="text-right font-bold">Всього послуг:</td>
+                      <td className="font-bold">{group.servicesTotal}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            {/* Запчасти */}
+            {group.parts.length > 0 && (
+              <div className="mb-4">
+                <h4 className="font-semibold mb-2">Запчастини:</h4>
+                <table className="min-w-full">
+                  <thead>
+                    <tr>
+                      <th>Код</th>
+                      <th>Назва</th>
+                      <th>Од. вим.</th>
+                      <th>К-сть</th>
+                      <th>Ціна</th>
+                      <th>Сума</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.parts.map(spec => (
+                      <tr key={spec.id}>
+                        <td>{spec.code}</td>
+                        <td>{spec.name}</td>
+                        <td>{spec.unit}</td>
+                        <td>{spec.quantity}</td>
+                        <td>{spec.price}</td>
+                        <td>{calculateSpecTotal(spec)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan="5" className="text-right font-bold">Всього запчастин:</td>
+                      <td className="font-bold">{group.partsTotal}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            <div className="text-right font-bold">
+              Загальна сума: {group.total}
+            </div>
+          </div>
+        ))}
+
+        <div className="text-right font-bold mt-6 text-lg">
+          Загальна сума: {
+            Object.values(groupedSpecs).reduce((total, group) => total + group.total, 0)
+          }
+        </div>
       </Card>
+
+      {/* Модальное окно создания акта */}
+      {showCreateActModal && (
+        <CreateActModal
+          contract={contract}
+          onClose={() => setShowCreateActModal(false)}
+          onSubmit={async (formData) => {
+            try {
+              const response = await fetch('/api/acts', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  ...formData,
+                  contractId: contract.id,
+                }),
+              });
+
+              if (!response.ok) {
+                throw new Error('Failed to create act');
+              }
+
+              toast.success('Акт успішно створено!');
+              setShowCreateActModal(false);
+              
+              // Обновляем данные на странице
+              router.reload();
+            } catch (error) {
+              console.error('Error creating act:', error);
+              toast.error('Помилка при створенні акту');
+            }
+          }}
+        />
+      )}
     </Layout>
   );
 }

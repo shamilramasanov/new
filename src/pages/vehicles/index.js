@@ -94,19 +94,15 @@ export default function VehiclesPage({ vehicles = [] }) {
               <div className={styles.cardStats}>
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>Всього ремонтів</span>
-                  <span className={styles.statValue}>{vehicle.repairs?.length || 0}</span>
+                  <span className={styles.statValue}>{vehicle.repairStats?.total || 0}</span>
                 </div>
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>В роботі</span>
-                  <span className={styles.statValue}>
-                    {vehicle.repairs?.filter(r => r.status === 'IN_PROGRESS').length || 0}
-                  </span>
+                  <span className={styles.statValue}>{vehicle.repairStats?.active || 0}</span>
                 </div>
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>Сума ремонтів</span>
-                  <span className={styles.statValue}>
-                    {formatCurrency(vehicle.repairs?.reduce((sum, r) => sum + r.amount, 0) || 0)}
-                  </span>
+                  <span className={styles.statValue}>{formatCurrency(vehicle.repairStats?.totalAmount || 0)}</span>
                 </div>
               </div>
             </Link>

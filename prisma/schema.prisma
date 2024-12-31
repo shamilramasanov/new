@@ -73,6 +73,7 @@ model Vehicle {
   location    String?   // Місце дислокації
   imageUrl    String?   // URL фотографії
   contracts   Contract[]
+  specifications Specification[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
@@ -104,24 +105,24 @@ model Contract {
 
 // Модель для специфікацій договору
 model Specification {
-  id              String    @id @default(cuid())
-  name            String    // Назва товару/послуги
-  code            String?   // Код товару (опціонально)
-  unit            String    // Одиниця виміру
-  quantity        Float     // Кількість
-  price           Float     // Ціна за одиницю
-  amount          Float     // Загальна сума
-  total           Float?    // Підсумкова сума з урахуванням кількості обслуговувань
-  serviceCount    Int?      // Кількість обслуговувань (для КЕКВ 2240)
-  section         String?   // Розділ (для КЕКВ 2240: "Послуги" або "Запчастини")
-  vehicleBrand    String?   // Марка автомобіля (для КЕКВ 2240)
-  vehicleVin      String?   // VIN-код або номер автомобіля (для КЕКВ 2240)
-  vehicleLocation String?   // Місце розташування автомобіля (для КЕКВ 2240)
-  contract        Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  contractId      String
-  actItems      ActItem[] // Позиції в актах
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  code          String?
+  unit          String
+  quantity      Float
+  price         Float
+  serviceCount  Int      @default(1)
+  type          String   @default("part") // "service" або "part"
+  contractId    String
+  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  vehicle       Vehicle? @relation(fields: [vehicleId], references: [id])
+  vehicleId     String?
+  vehicleBrand  String?
+  vehicleVin    String?
+  vehicleLocation String?
+  actItems      ActItem[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // Модель для актів виконаних робіт

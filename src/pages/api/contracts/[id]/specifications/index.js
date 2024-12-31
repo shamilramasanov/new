@@ -71,6 +71,7 @@ export default async function handle(req, res) {
 
         // Получаем данные из запроса
         const { 
+          rows,
           name, 
           code, 
           unit, 
@@ -103,26 +104,43 @@ export default async function handle(req, res) {
             const vehicleResult = await prisma.$transaction(async (tx) => {
               console.log('Looking for existing vehicle with VIN:', vehicleVin);
               
-              // Ищем существующий автомобиль по VIN или создаем новый
-              const vehicle = await tx.vehicle.upsert({
-                where: { vin: vehicleVin },
-                update: {
-                  brand: vehicleBrand,
-                  location: vehicleLocation
-                },
-                create: {
-                  number: vehicleVin, // Используем VIN как номер, если нет бортового
-                  brand: vehicleBrand,
-                  model: 'Не вказано',
-                  vin: vehicleVin,
-                  location: vehicleLocation
+              // Сначала проверяем, есть ли уже автомобиль с таким VIN
+              let existingVehicle = await tx.vehicle.findFirst({
+                where: { 
+                  OR: [
+                    { vin: vehicleVin },
+                    { number: vehicleVin }
+                  ]
                 }
               });
-              
-              console.log('Vehicle upserted:', vehicle);
 
-              // Связываем автомобиль с договором, если еще не связан
-              if (!contract.vehicleId) {
+              let vehicle;
+              if (existingVehicle) {
+                // Если автомобиль существует, обновляем его данные
+                vehicle = await tx.vehicle.update({
+                  where: { id: existingVehicle.id },
+                  data: {
+                    brand: vehicleBrand,
+                    location: vehicleLocation
+                  }
+                });
+              } else {
+                // Если автомобиль не существует, создаем новый
+                vehicle = await tx.vehicle.create({
+                  data: {
+                    number: vehicleVin,
+                    brand: vehicleBrand,
+                    model: 'Не вказано',
+                    vin: vehicleVin,
+                    location: vehicleLocation
+                  }
+                });
+              }
+              
+              console.log('Vehicle processed:', vehicle);
+
+              // Связываем автомобиль с договором, если еще не связан или связан с другим автомобилем
+              if (!contract.vehicleId || contract.vehicleId !== vehicle.id) {
                 console.log('Linking vehicle to contract:', { contractId: id, vehicleId: vehicle.id });
                 
                 const updatedContract = await tx.contract.update({
@@ -145,92 +163,47 @@ export default async function handle(req, res) {
           }
         }
 
-        // Создаем спецификацию и инвентарь (если не 2240)
-        const result = await prisma.$transaction(async (prisma) => {
-          let inventoryItemId = null;
-
-          // Создаем запись в инвентаре только если это НЕ 2240
-          if (contract.kekv.code !== '2240' && code) {
-            // Находим или создаем категорию инвентаря на основе КЕКВ
-            const category = await prisma.inventoryCategory.upsert({
-              where: { code: contract.kekv.code },
-              update: {},
-              create: {
-                name: contract.kekv.name,
-                code: contract.kekv.code,
-                description: `Категорія створена автоматично на основі КЕКВ ${contract.kekv.code}`
-              }
-            });
-
-            const inventoryItem = await prisma.inventoryItem.create({
-              data: {
-                name,
-                code: `${contract.number}-${code}`, // Уникальный код для инвентаря
-                unit,
-                quantity,
-                price,
-                totalCost: amount,
-                description: `Поставка за договором ${contract.number}`,
-                category: {
-                  connect: {
-                    id: category.id
-                  }
-                },
-                contract: {
-                  connect: {
-                    id
-                  }
-                }
-              }
-            });
-            inventoryItemId = inventoryItem.id;
-          }
-
-          // Создаем спецификацию
-          const specification = await prisma.specification.create({
-            data: {
-              name,
-              code,
-              unit,
-              quantity,
-              price,
-              amount,
-              section: code ? 'Запчастини' : 'Послуги',
-              serviceCount,
-              vehicleBrand: vehicleBrand || 'Не вказано',
-              vehicleVin: vehicleVin || 'Не вказано',
-              vehicleLocation: vehicleLocation || 'Не вказано',
-              contractId: id,
-              // Связываем с инвентарем только если он был создан
-              ...(inventoryItemId && {
-                inventoryItem: {
-                  connect: {
-                    id: inventoryItemId
-                  }
-                }
-              })
-            },
-            include: {
-              contract: {
-                select: {
-                  dkCode: true,
-                  dkName: true,
-                  budget: {
-                    select: {
-                      id: true,
-                      name: true
-                    }
-                  }
-                }
-              },
-              inventoryItem: true
-            }
-          });
-
-          return specification;
+        // Преобразуем данные спецификации
+        const specifications = rows.map(row => {
+          const isService = !row.code; // Если нет кода, считаем что это услуга
+          return {
+            name: row.name,
+            code: row.code || null,
+            unit: row.unit,
+            quantity: parseFloat(row.quantity),
+            price: parseFloat(row.price),
+            serviceCount: parseInt(row.serviceCount || 1),
+            type: isService ? 'service' : 'part',
+            vehicleBrand: row.vehicleBrand,
+            vehicleVin: row.vehicleVin,
+            vehicleLocation: row.vehicleLocation,
+            contractId: id
+          };
         });
 
-        return res.json(result);
+        // Создаем спецификации в базе данных
+        const createdSpecs = await prisma.$transaction(
+          specifications.map(spec => 
+            prisma.specification.create({
+              data: spec,
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                unit: true,
+                quantity: true,
+                price: true,
+                type: true,
+                serviceCount: true,
+                vehicleBrand: true,
+                vehicleVin: true,
+                vehicleLocation: true
+              }
+            })
+          )
+        );
+
+        return res.json(createdSpecs);
 
       default:
         res.setHeader('Allow', ['GET', 'POST']);

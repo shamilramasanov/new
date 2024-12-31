@@ -19,20 +19,42 @@ export default async function handle(req, res) {
           id: true,
           number: true,
           dkCode: true,
-          amount: true,
           status: true,
           contractType: true,
           specifications: {
             select: {
               id: true,
-              amount: true
+              name: true,
+              code: true,
+              unit: true,
+              quantity: true,
+              price: true,
+              serviceCount: true,
+              type: true
             }
           }
         }
       });
 
+      // Вычисляем суммы для каждого договора
+      const contractsWithAmounts = contracts.map(contract => {
+        const amount = contract.specifications.reduce((sum, spec) => {
+          const baseAmount = spec.price * spec.quantity;
+          return sum + (spec.type === 'service' ? baseAmount * spec.serviceCount : baseAmount);
+        }, 0);
+
+        return {
+          ...contract,
+          amount,
+          specifications: contract.specifications.map(spec => ({
+            ...spec,
+            amount: spec.price * spec.quantity * (spec.type === 'service' ? spec.serviceCount : 1)
+          }))
+        };
+      });
+
       // Группируем договоры по ДК коду для подсчета общей суммы
-      const contractsByDk = contracts.reduce((acc, contract) => {
+      const contractsByDk = contractsWithAmounts.reduce((acc, contract) => {
         if (!acc[contract.dkCode]) {
           acc[contract.dkCode] = {
             total: 0,
@@ -41,17 +63,16 @@ export default async function handle(req, res) {
           };
         }
         
-        const amount = parseFloat(contract.amount || 0);
-        acc[contract.dkCode].total += amount;
+        acc[contract.dkCode].total += contract.amount;
         if (contract.contractType === 'Прямий') {
-          acc[contract.dkCode].directTotal += amount;
+          acc[contract.dkCode].directTotal += contract.amount;
         }
         acc[contract.dkCode].contracts.push(contract);
         
         return acc;
       }, {});
 
-      return res.json(contracts);
+      return res.json(contractsWithAmounts);
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

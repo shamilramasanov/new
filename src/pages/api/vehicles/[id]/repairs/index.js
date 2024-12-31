@@ -1,60 +1,91 @@
 import { prisma } from '@/lib/prisma';
 
-export default async function handle(req, res) {
+export default async function handler(req, res) {
   const { id } = req.query;
 
-  try {
-    switch (req.method) {
-      case 'GET':
-        const repairs = await prisma.contract.findMany({
-          where: {
-            vehicleId: id,
-          },
-          select: {
-            id: true,
-            number: true,
-            contractor: true,
-            amount: true,
-            startDate: true,
-            endDate: true,
-            status: true,
-            acts: {
-              select: {
-                id: true,
-                number: true,
-                date: true,
-                status: true,
-                totalAmount: true,
-              }
-            },
-            specifications: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-                unit: true,
-                quantity: true,
-                price: true,
-                amount: true,
-                section: true,
-                serviceCount: true,
+  if (req.method === 'GET') {
+    try {
+      // Получаем все спецификации для данного автомобиля
+      const specifications = await prisma.specification.findMany({
+        where: {
+          vehicleId: id,
+          contract: {
+            kekv: {
+              code: '2240'
+            }
+          }
+        },
+        include: {
+          contract: {
+            include: {
+              kekv: true,
+              acts: {
+                select: {
+                  id: true,
+                  number: true,
+                  date: true,
+                  status: true,
+                  totalAmount: true
+                }
               }
             }
-          },
-          orderBy: {
-            startDate: 'desc',
-          },
+          }
+        },
+        orderBy: {
+          contract: {
+            startDate: 'desc'
+          }
+        }
+      });
+
+      // Группируем спецификации по договорам
+      const contractsMap = new Map();
+      specifications.forEach(spec => {
+        if (!contractsMap.has(spec.contract.id)) {
+          contractsMap.set(spec.contract.id, {
+            id: spec.contract.id,
+            number: spec.contract.number,
+            contractor: spec.contract.contractor,
+            startDate: spec.contract.startDate,
+            endDate: spec.contract.endDate,
+            status: spec.contract.status,
+            kekv: {
+              code: spec.contract.kekv.code,
+              name: spec.contract.kekv.name
+            },
+            acts: spec.contract.acts,
+            specifications: []
+          });
+        }
+        contractsMap.get(spec.contract.id).specifications.push({
+          id: spec.id,
+          name: spec.name,
+          code: spec.code,
+          unit: spec.unit,
+          quantity: spec.quantity,
+          price: spec.price,
+          type: spec.type,
+          serviceCount: spec.serviceCount,
+          vehicleBrand: spec.vehicleBrand,
+          vehicleVin: spec.vehicleVin,
+          vehicleLocation: spec.vehicleLocation,
+          amount: spec.price * spec.quantity * (spec.type === 'service' ? spec.serviceCount : 1)
         });
+      });
 
-        res.json(repairs);
-        break;
+      // Преобразуем Map в массив и добавляем общую сумму для каждого договора
+      const repairsWithTotals = Array.from(contractsMap.values()).map(contract => ({
+        ...contract,
+        amount: contract.specifications.reduce((sum, spec) => sum + spec.amount, 0)
+      }));
 
-      default:
-        res.setHeader('Allow', ['GET']);
-        res.status(405).end(`Method ${req.method} Not Allowed`);
+      return res.json(repairsWithTotals);
+    } catch (error) {
+      console.error('Error fetching repairs:', error);
+      return res.status(500).json({ error: 'Failed to fetch repairs' });
     }
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: error.message });
   }
+
+  res.setHeader('Allow', ['GET']);
+  return res.status(405).end(`Method ${req.method} Not Allowed`);
 }

@@ -154,9 +154,8 @@ export default async function handle(req, res) {
                   unit: spec.unit,
                   quantity: spec.quantity,
                   price: spec.price,
-                  amount: spec.price * spec.quantity * (spec.serviceCount || 1),
                   serviceCount: spec.serviceCount || 1,
-                  section: spec.section,
+                  type: spec.code ? 'part' : 'service',
                   vehicleBrand: spec.vehicleBrand,
                   vehicleVin: spec.vehicleVin,
                   vehicleLocation: spec.vehicleLocation
@@ -166,7 +165,7 @@ export default async function handle(req, res) {
             include: {
               budget: true,
               kekv: true,
-              specifications: true,
+              specifications: true
             }
           });
 
@@ -179,11 +178,9 @@ export default async function handle(req, res) {
             // Получаем уникальные автомобили из спецификаций
             const uniqueVehicles = specifications.reduce((acc, spec) => {
               if (spec.vehicleBrand && spec.vehicleVin && !acc.some(v => v.number === spec.vehicleVin)) {
-                // Разделяем марку автомобиля на бренд и модель
-                const [brand, ...modelParts] = spec.vehicleBrand.split(' ');
                 acc.push({
-                  brand: brand,
-                  model: modelParts.join(' '),
+                  brand: spec.vehicleBrand.split(' ')[0], // Берем первое слово как бренд
+                  model: spec.vehicleBrand.split(' ').slice(1).join(' '), // Остальные слова - модель
                   number: spec.vehicleVin,
                   location: spec.vehicleLocation || 'Основна база'
                 });
@@ -195,35 +192,50 @@ export default async function handle(req, res) {
             for (const vehicle of uniqueVehicles) {
               console.log('Обработка автомобиля:', vehicle);
               try {
-                const existingVehicle = await prisma.vehicle.findUnique({
+                // Ищем автомобиль по VIN
+                let vehicleRecord = await prisma.vehicle.findUnique({
                   where: { number: vehicle.number }
                 });
 
-                if (existingVehicle) {
-                  console.log('Обновляем существующий автомобиль:', existingVehicle);
-                  await prisma.vehicle.update({
-                    where: { id: existingVehicle.id },
-                    data: {
-                      location: vehicle.location,
-                      contracts: {
-                        connect: { id: newContract.id }
-                      }
-                    }
-                  });
+                if (vehicleRecord) {
+                  console.log('Найден существующий автомобиль:', vehicleRecord);
+                  // Обновляем только если изменилась локация
+                  if (vehicleRecord.location !== vehicle.location) {
+                    vehicleRecord = await prisma.vehicle.update({
+                      where: { id: vehicleRecord.id },
+                      data: { location: vehicle.location }
+                    });
+                  }
                 } else {
                   console.log('Создаем новый автомобиль...');
-                  await prisma.vehicle.create({
+                  vehicleRecord = await prisma.vehicle.create({
                     data: {
                       brand: vehicle.brand,
                       model: vehicle.model,
                       number: vehicle.number,
-                      location: vehicle.location,
-                      contracts: {
-                        connect: { id: newContract.id }
-                      }
+                      location: vehicle.location
                     }
                   });
                 }
+
+                // Обновляем договор, устанавливая связь с автомобилем
+                await prisma.contract.update({
+                  where: { id: newContract.id },
+                  data: { vehicleId: vehicleRecord.id }
+                });
+
+                // Обновляем все спецификации для этого автомобиля
+                await prisma.specification.updateMany({
+                  where: {
+                    contractId: newContract.id,
+                    vehicleVin: vehicle.number
+                  },
+                  data: {
+                    vehicleId: vehicleRecord.id
+                  }
+                });
+
+                console.log('Договор и спецификации обновлены с привязкой к автомобилю:', vehicleRecord.id);
               } catch (error) {
                 console.error('Ошибка при создании/обновлении автомобиля:', error);
                 throw error;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { formatCurrency } from '@/utils/format';
@@ -7,21 +7,46 @@ import CreateActModal from '@/components/CreateActModal';
 
 export default function VehicleRepairsPage({ vehicle, repairs }) {
   const router = useRouter();
-  const [expandedContracts, setExpandedContracts] = useState(new Set());
+  const { id: vehicleId } = router.query;
+  
   const [showCreateActModal, setShowCreateActModal] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
-  const [id, setId] = useState(vehicle.id);
-  const [repairsData, setRepairsData] = useState(repairs);
+  const [expandedContracts, setExpandedContracts] = useState(new Set());
+  const [id, setId] = useState(vehicleId);
+  const [repairsData, setRepairsData] = useState(repairs || []);
+  const [vehicleData, setVehicleData] = useState(vehicle || null);
+  const [isLoading, setIsLoading] = useState(!vehicle && !!vehicleId);
+
+  useEffect(() => {
+    console.log('Modal state:', { showCreateActModal, selectedContract });
+  }, [showCreateActModal, selectedContract]);
+
+  useEffect(() => {
+    if (!vehicle && vehicleId) {
+      setIsLoading(true);
+      fetch(`/api/vehicles/${vehicleId}`)
+        .then(res => res.json())
+        .then(data => {
+          setVehicleData(data);
+          setId(data.id);
+          setIsLoading(false);
+        })
+        .catch(error => {
+          console.error('Error loading vehicle:', error);
+          setIsLoading(false);
+        });
+    }
+  }, [vehicle, vehicleId]);
 
   const toggleContract = (contractId) => {
     setExpandedContracts(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(contractId)) {
-        newSet.delete(contractId);
+      const next = new Set(prev);
+      if (next.has(contractId)) {
+        next.delete(contractId);
       } else {
-        newSet.add(contractId);
+        next.add(contractId);
       }
-      return newSet;
+      return next;
     });
   };
 
@@ -56,15 +81,21 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
     }
   };
 
-  if (router.isFallback) {
-    return <div className={styles.container}>Завантаження...</div>;
-  }
-
-  if (!vehicle) {
+  if (isLoading) {
     return (
       <div className={styles.container}>
-        <div className={styles.emptyState}>
-          Автомобіль не знайдено
+        <div className="flex justify-center items-center h-screen">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!vehicleData) {
+    return (
+      <div className={styles.container}>
+        <div className="flex justify-center items-center h-screen">
+          <div className="text-xl">Автомобіль не знайдено</div>
         </div>
       </div>
     );
@@ -103,6 +134,10 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
     }
   };
 
+  if (router.isFallback) {
+    return <div className={styles.container}>Завантаження...</div>;
+  }
+
   return (
     <div className={styles.container}>
       <Link href="/vehicles" className={styles.backLink}>
@@ -111,50 +146,50 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
 
       <div className={styles.header}>
         <h1 className={styles.title}>
-          {vehicle.brand} {vehicle.model}
-          <span className={styles.vehicleNumber}>{vehicle.number}</span>
+          {vehicleData.brand} {vehicleData.model}
+          <span className={styles.vehicleNumber}>{vehicleData.number}</span>
         </h1>
         
         <div className={styles.infoGrid}>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Бортовий номер</span>
-            <span className={styles.infoValue}>{vehicle.number}</span>
+            <span className={styles.infoValue}>{vehicleData.number}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Пробіг</span>
             <span className={styles.infoValue}>
-              {vehicle.mileage ? `${vehicle.mileage.toLocaleString()} км` : 'Не вказано'}
+              {vehicleData.mileage ? `${vehicleData.mileage.toLocaleString()} км` : 'Не вказано'}
             </span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Рік випуску</span>
-            <span className={styles.infoValue}>{vehicle.year || 'Не вказано'}</span>
+            <span className={styles.infoValue}>{vehicleData.year || 'Не вказано'}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>VIN-код</span>
-            <span className={styles.infoValue}>{vehicle.vin || 'Не вказано'}</span>
+            <span className={styles.infoValue}>{vehicleData.vin || 'Не вказано'}</span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Місце дислокації</span>
-            <span className={styles.infoValue}>{vehicle.location || 'Не вказано'}</span>
+            <span className={styles.infoValue}>{vehicleData.location || 'Не вказано'}</span>
           </div>
         </div>
 
         <div className={styles.actions}>
           <button
-            onClick={() => router.push(`/vehicles/${vehicle.id}/edit`)}
+            onClick={() => router.push(`/vehicles/${vehicleData.id}/edit`)}
             className={styles.secondaryButton}
           >
             Редагувати
           </button>
           <Link
-            href={`/contracts/new?vehicleId=${vehicle.id}`}
+            href={`/contracts/new?vehicleId=${vehicleData.id}`}
             className={styles.primaryButton}
           >
             Додати ремонт
           </Link>
           <button 
-            onClick={() => router.push(`/vehicles/${vehicle.id}/mileage`)}
+            onClick={() => router.push(`/vehicles/${vehicleData.id}/mileage`)}
             className={styles.secondaryButton}
           >
             Історія пробігу
@@ -166,7 +201,7 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
         <div className={styles.repairsHeader}>
           <h2 className={styles.repairsTitle}>Договори на ремонт</h2>
           <Link
-            href={`/contracts/new?vehicleId=${vehicle.id}`}
+            href={`/contracts/new?vehicleId=${vehicleData.id}`}
             className={styles.primaryButton}
           >
             Додати договір
@@ -207,130 +242,99 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
                 </div>
                 
                 {expandedContracts.has(repair.id) && (
-                  <>
-                    <div className={styles.specificationsSection}>
-                      <h4 className={styles.specificationsTitle}>
-                        Специфікації:
-                      </h4>
-
-                      {/* Послуги */}
-                      <div className="mb-6">
-                        <h5 className="text-sm font-semibold mb-2">Послуги</h5>
-                        <table className={styles.specificationsTable}>
-                          <thead>
-                            <tr>
-                              <th>№</th>
-                              <th>Найменування</th>
-                              <th>Од. виміру</th>
-                              <th>К-сть</th>
-                              <th>Ціна</th>
-                              <th>К-ть обсл.</th>
-                              <th>Сума</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {repair.specifications
-                              ?.filter(spec => spec.section === 'Послуги')
-                              .map((spec, index) => (
-                                <tr key={spec.id}>
-                                  <td>{index + 1}</td>
-                                  <td>{spec.name}</td>
-                                  <td>{spec.unit}</td>
-                                  <td className="text-right">{Number(spec.quantity).toFixed(2)}</td>
-                                  <td className="text-right">{formatCurrency(spec.price)}</td>
-                                  <td className="text-right">{Number(spec.serviceCount).toFixed(2)}</td>
-                                  <td className="text-right">{formatCurrency(spec.amount)}</td>
-                                </tr>
-                            ))}
-                            <tr>
-                              <td colSpan="6" className="text-right font-semibold">Разом за послуги:</td>
-                              <td className="text-right font-semibold">
-                                {formatCurrency(repair.specifications
-                                  ?.filter(spec => spec.section === 'Послуги')
-                                  .reduce((sum, spec) => sum + spec.amount, 0) || 0
-                                )}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Використані запчастини */}
-                      <div>
-                        <h5 className="text-sm font-semibold mb-2">Використані запчастини</h5>
-                        <table className={styles.specificationsTable}>
-                          <thead>
-                            <tr>
-                              <th>№</th>
-                              <th>Найменування</th>
-                              <th>Код</th>
-                              <th>Од. виміру</th>
-                              <th>К-сть</th>
-                              <th>Ціна</th>
-                              <th>Сума</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {repair.specifications
-                              ?.filter(spec => spec.section === 'Використані запчастини')
-                              .map((spec, index) => (
-                                <tr key={spec.id}>
-                                  <td>{index + 1}</td>
-                                  <td>{spec.name}</td>
-                                  <td>{spec.code || '-'}</td>
-                                  <td>{spec.unit}</td>
-                                  <td className="text-right">{Number(spec.quantity).toFixed(2)}</td>
-                                  <td className="text-right">{formatCurrency(spec.price)}</td>
-                                  <td className="text-right">{formatCurrency(spec.amount)}</td>
-                                </tr>
-                            ))}
-                            <tr>
-                              <td colSpan="6" className="text-right font-semibold">Разом за запчастини:</td>
-                              <td className="text-right font-semibold">
-                                {formatCurrency(repair.specifications
-                                  ?.filter(spec => spec.section === 'Використані запчастини')
-                                  .reduce((sum, spec) => sum + spec.amount, 0) || 0
-                                )}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Общая сумма */}
-                      <div className="mt-4 text-right">
-                        <p className="font-semibold">
-                          Разом по автомобілю: {formatCurrency(repair.amount)} грн
-                        </p>
-                        <p className="font-semibold mt-2">
-                          Загальна сума: {formatCurrency(repair.amount)} грн
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className={styles.repairFooter}>
-                      <div className={styles.repairActions}>
-                        <button
-                          onClick={() => router.push(`/contracts/${repair.id}/edit`)}
-                          className={styles.secondaryButton}
-                        >
-                          Редагувати
-                        </button>
-                        <button className={styles.secondaryButton}>
-                          Друк
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setSelectedContract(repair);
+                  <div className="mt-4 space-y-4">
+                    {/* Кнопки действий */}
+                    <div className="flex justify-end space-x-2 mb-4">
+                      <Link
+                        href={`/contracts/${repair.id}`}
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                      >
+                        Переглянути договір
+                      </Link>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(`/api/contracts/${repair.id}`);
+                            const contractData = await response.json();
+                            setSelectedContract(contractData);
                             setShowCreateActModal(true);
-                          }}
-                          className={styles.secondaryButton}
-                        >
-                          Створити акт
-                        </button>
-                      </div>
+                          } catch (error) {
+                            console.error('Error fetching contract:', error);
+                            alert('Помилка при завантаженні даних договору');
+                          }
+                        }}
+                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                      >
+                        Створити акт
+                      </button>
                     </div>
-                  </>
+
+                    {/* Услуги */}
+                    {repair.specifications?.filter(spec => spec.type === 'service').length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Послуги</h4>
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-2 text-left">Найменування</th>
+                              <th className="px-4 py-2 text-left">Од. виміру</th>
+                              <th className="px-4 py-2 text-right">К-сть</th>
+                              <th className="px-4 py-2 text-right">Ціна</th>
+                              <th className="px-4 py-2 text-right">К-ть обсл.</th>
+                              <th className="px-4 py-2 text-right">Сума</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {repair.specifications
+                              .filter(spec => spec.type === 'service')
+                              .map((spec, index) => (
+                                <tr key={spec.id}>
+                                  <td className="px-4 py-2">{spec.name}</td>
+                                  <td className="px-4 py-2">{spec.unit}</td>
+                                  <td className="px-4 py-2 text-right">{spec.quantity}</td>
+                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.price)}</td>
+                                  <td className="px-4 py-2 text-right">{spec.serviceCount}</td>
+                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.amount)}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Запчасти */}
+                    {repair.specifications?.filter(spec => spec.type === 'part').length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Запчастини</h4>
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-2 text-left">Код</th>
+                              <th className="px-4 py-2 text-left">Найменування</th>
+                              <th className="px-4 py-2 text-left">Од. виміру</th>
+                              <th className="px-4 py-2 text-right">К-сть</th>
+                              <th className="px-4 py-2 text-right">Ціна</th>
+                              <th className="px-4 py-2 text-right">Сума</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {repair.specifications
+                              .filter(spec => spec.type === 'part')
+                              .map((spec, index) => (
+                                <tr key={spec.id}>
+                                  <td className="px-4 py-2">{spec.code}</td>
+                                  <td className="px-4 py-2">{spec.name}</td>
+                                  <td className="px-4 py-2">{spec.unit}</td>
+                                  <td className="px-4 py-2 text-right">{spec.quantity}</td>
+                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.price)}</td>
+                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.amount)}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
@@ -339,7 +343,7 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
           <div className={styles.emptyState}>
             <p>Ще немає договорів на ремонт для цього автомобіля</p>
             <Link
-              href={`/contracts/new?vehicleId=${vehicle.id}`}
+              href={`/contracts/new?vehicleId=${vehicleData.id}`}
               className={styles.primaryButton}
             >
               Додати перший договір
@@ -347,6 +351,7 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
           </div>
         )}
       </div>
+
       {showCreateActModal && selectedContract && (
         <CreateActModal
           contract={selectedContract}

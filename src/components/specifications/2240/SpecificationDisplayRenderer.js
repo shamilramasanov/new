@@ -13,7 +13,7 @@ export default function SpecificationDisplayRenderer({ specifications }) {
     return new Intl.NumberFormat('uk-UA', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(Math.round(num * 100) / 100); // Округляем до 2 знаков после запятой
+    }).format(Math.round(num * 100) / 100);
   };
 
   // Группируем спецификации по автомобилям 
@@ -21,7 +21,6 @@ export default function SpecificationDisplayRenderer({ specifications }) {
     console.log('Grouping specifications:', specifications);
     
     const grouped = specifications.reduce((acc, spec) => {
-      // Если нет информации об автомобиле, используем default
       const vehicleKey = spec.vehicleBrand && spec.vehicleVin ? 
         `${spec.vehicleBrand}-${spec.vehicleVin}` : 'default';
       
@@ -36,21 +35,27 @@ export default function SpecificationDisplayRenderer({ specifications }) {
           parts: []
         };
       }
+
+      // Определяем тип спецификации и количество обслуживаний
+      const isService = spec.unit === 'норм/год';
+      const serviceCount = isService ? (spec.serviceCount || 1) : 1;
       
-      // Определяем, куда добавить спецификацию
-      const amount = spec.total || (spec.quantity * spec.price * (spec.serviceCount || 1));
+      // Рассчитываем сумму с учетом количества обслуживаний
+      const amount = isService 
+        ? spec.quantity * spec.price * serviceCount
+        : spec.quantity * spec.price;
+
       const specWithAmount = {
         ...spec,
-        amount: Math.round(amount * 100) / 100 // Округляем до 2 знаков после запятой
+        isService,
+        serviceCount,
+        amount: Math.round(amount * 100) / 100
       };
 
-      if (spec.section === 'Послуги') {
+      if (isService) {
         acc[vehicleKey].services.push(specWithAmount);
-      } else if (spec.section === 'Використані запчастини') {
-        acc[vehicleKey].parts.push(specWithAmount);
       } else {
-        // Если section не указан или другое значение, добавляем в услуги
-        acc[vehicleKey].services.push(specWithAmount);
+        acc[vehicleKey].parts.push(specWithAmount);
       }
       
       return acc;
@@ -108,7 +113,7 @@ export default function SpecificationDisplayRenderer({ specifications }) {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{spec.unit}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatNumber(spec.quantity)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatNumber(spec.price)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{spec.serviceCount || 1}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{spec.isService ? spec.serviceCount : '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatNumber(spec.amount)}</td>
                     </tr>
                   ))}

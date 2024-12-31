@@ -4,51 +4,67 @@ export default async function handle(req, res) {
   try {
     switch (req.method) {
       case 'GET':
-        // Получаем все уникальные автомобили из договоров
-        const contracts = await prisma.contract.findMany({
-          where: {
-            kekv: {
-              code: '2240'
-            },
-            vehicleId: {
-              not: null
-            }
-          },
+        // Получаем все автомобили с их спецификациями и договорами
+        const vehicles = await prisma.vehicle.findMany({
           include: {
-            vehicle: true,
-            kekv: true,
-            specifications: true
+            specifications: {
+              include: {
+                contract: {
+                  include: {
+                    kekv: true
+                  }
+                }
+              }
+            }
           }
         });
 
-        // Группируем договоры по автомобилям
-        const vehiclesMap = new Map();
-        
-        for (const contract of contracts) {
-          if (!contract.vehicle) continue;
-          
-          if (!vehiclesMap.has(contract.vehicle.id)) {
-            vehiclesMap.set(contract.vehicle.id, {
-              ...contract.vehicle,
-              repairs: []
-            });
-          }
-          
-          const vehicleData = vehiclesMap.get(contract.vehicle.id);
-          vehicleData.repairs.push({
-            contractId: contract.id,
-            contractNumber: contract.number,
-            contractDate: contract.startDate,
-            status: contract.status,
-            amount: contract.amount,
-            specifications: contract.specifications
+        // Преобразуем данные для фронтенда
+        const formattedVehicles = vehicles.map(vehicle => {
+          // Получаем все спецификации для ремонтов (КЕКВ 2240)
+          const repairSpecs = vehicle.specifications.filter(
+            spec => spec.contract.kekv.code === '2240' && spec.contract.status !== 'CANCELLED'
+          );
+
+          // Группируем спецификации по договорам
+          const contractsMap = new Map();
+          repairSpecs.forEach(spec => {
+            if (!contractsMap.has(spec.contract.id)) {
+              contractsMap.set(spec.contract.id, {
+                status: spec.contract.status,
+                specs: []
+              });
+            }
+            contractsMap.get(spec.contract.id).specs.push(spec);
           });
-        }
 
-        // Преобразуем Map в массив
-        const vehicles = Array.from(vehiclesMap.values());
+          // Подсчитываем статистику
+          const contracts = Array.from(contractsMap.values());
+          const activeRepairs = contracts.filter(c => c.status === 'IN_PROGRESS').length;
+          const totalAmount = repairSpecs.reduce((total, spec) => {
+            const baseAmount = spec.price * spec.quantity;
+            return total + (spec.type === 'service' ? baseAmount * spec.serviceCount : baseAmount);
+          }, 0);
 
-        res.json(vehicles);
+          return {
+            id: vehicle.id,
+            number: vehicle.number,
+            brand: vehicle.brand,
+            model: vehicle.model,
+            vin: vehicle.vin,
+            year: vehicle.year,
+            mileage: vehicle.mileage,
+            location: vehicle.location,
+            imageUrl: vehicle.imageUrl,
+            repairStats: {
+              total: contracts.length,
+              active: activeRepairs,
+              totalAmount: totalAmount
+            }
+          };
+        });
+
+        res.json(formattedVehicles);
         break;
 
       case 'POST':
