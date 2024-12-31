@@ -5,7 +5,7 @@ import { formatCurrency } from '@/utils/format';
 import styles from '@/styles/VehicleDetails.module.css';
 import CreateActModal from '@/components/CreateActModal';
 
-export default function VehicleRepairsPage({ vehicle, repairs }) {
+export default function VehicleRepairsPage({ vehicle, repairs, error }) {
   const router = useRouter();
   const { id: vehicleId } = router.query;
   
@@ -136,6 +136,16 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
 
   if (router.isFallback) {
     return <div className={styles.container}>Завантаження...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className={styles.container}>
+        <div className="flex justify-center items-center h-screen">
+          <div className="text-xl">{error}</div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -367,13 +377,26 @@ export default function VehicleRepairsPage({ vehicle, repairs }) {
 }
 
 export async function getServerSideProps({ params }) {
+  if (!params?.id) {
+    return {
+      props: {
+        vehicle: null,
+        repairs: [],
+      },
+    };
+  }
+
   try {
     const [vehicleResponse, repairsResponse] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/vehicles/${params.id}`),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/vehicles/${params.id}/repairs`)
+      fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/api/vehicles/${params.id}`),
+      fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/api/vehicles/${params.id}/repairs`)
     ]);
-    
+
     if (!vehicleResponse.ok || !repairsResponse.ok) {
+      console.error('Failed to fetch data:', {
+        vehicleStatus: vehicleResponse.status,
+        repairsStatus: repairsResponse.status
+      });
       throw new Error('Failed to fetch data');
     }
 
@@ -389,11 +412,12 @@ export async function getServerSideProps({ params }) {
       },
     };
   } catch (error) {
-    console.error('Error fetching data:', error);
+    console.error('Error in getServerSideProps:', error);
     return {
       props: {
         vehicle: null,
         repairs: [],
+        error: error.message
       },
     };
   }
