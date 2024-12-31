@@ -8,8 +8,8 @@ export default async function handler(req, res) {
       // Получаем все спецификации для данного автомобиля
       const specifications = await prisma.specification.findMany({
         where: {
-          vehicleId: id,
           contract: {
+            vehicleId: id,
             kekv: {
               code: '2240'
             }
