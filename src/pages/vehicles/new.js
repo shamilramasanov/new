@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { fetchApi } from '@/utils/api';
 
 export default function NewVehicle() {
   const router = useRouter();
@@ -13,11 +14,15 @@ export default function NewVehicle() {
     mileage: '',
     location: '',
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
+
     try {
-      const response = await fetch('/api/vehicles', {
+      const response = await fetchApi('/api/vehicles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -25,14 +30,12 @@ export default function NewVehicle() {
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create vehicle');
-      }
-
-      const vehicle = await response.json();
-      router.push(`/vehicles/${vehicle.id}/repairs`);
+      router.push('/vehicles');
     } catch (error) {
       console.error('Error creating vehicle:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -195,11 +198,15 @@ export default function NewVehicle() {
             </Link>
             <button
               type="submit"
+              disabled={isLoading}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              Зберегти
+              {isLoading ? 'Зачекайте...' : 'Зберегти'}
             </button>
           </div>
+          {error && (
+            <div className="text-red-500 text-sm">{error}</div>
+          )}
         </form>
       </div>
     </div>

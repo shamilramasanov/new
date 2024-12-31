@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import styles from './VehiclesPage.module.css';
 import { formatCurrency } from '@/utils/format';
+import { fetchApi } from '@/utils/api';
 
 export default function VehiclesPage({ vehicles = [] }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -116,14 +117,9 @@ export default function VehiclesPage({ vehicles = [] }) {
   );
 }
 
-export async function getServerSideProps() {
+export async function getServerSideProps(context) {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/vehicles`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch vehicles');
-    }
-    const vehicles = await response.json();
-
+    const vehicles = await fetchApi('/api/vehicles', {}, context.req);
     return {
       props: {
         vehicles,

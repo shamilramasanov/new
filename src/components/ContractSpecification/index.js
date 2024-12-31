@@ -6,6 +6,8 @@ import SpecificationForm from './SpecificationForm';
 import SpecificationTable from './SpecificationTable';
 import UsageForm from './UsageForm';
 import UsageHistory from './UsageHistory';
+import { fetchApi } from '@/utils/api';
+import { toast } from 'react-toastify';
 
 const ContractSpecification = ({ contract, onUpdate }) => {
   const [selectedSpec, setSelectedSpec] = React.useState(null);
@@ -14,7 +16,7 @@ const ContractSpecification = ({ contract, onUpdate }) => {
   const handleAddSpecification = async (newSpec) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/contracts/${contract.id}/specifications`, {
+      await fetchApi(`/api/contracts/${contract.id}/specifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -22,30 +24,22 @@ const ContractSpecification = ({ contract, onUpdate }) => {
         body: JSON.stringify(newSpec),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Помилка при додаванні специфікації');
-      }
-
       // Получаем обновленные спецификации
-      const specsResponse = await fetch(`/api/contracts/${contract.id}/specifications`);
-      const specifications = await specsResponse.json();
-
-      onUpdate({
-        ...contract,
-        specifications
-      });
+      const specifications = await fetchApi(`/api/contracts/${contract.id}/specifications`);
+      onUpdate({ ...contract, specifications });
     } catch (error) {
       console.error('Error adding specification:', error);
-      alert(error.message);
+      toast.error(error.message || 'Помилка при додаванні специфікації');
     } finally {
       setIsLoading(false);
+      setSelectedSpec(null);
     }
   };
 
   const handleUpdateSpecification = async (updatedSpec) => {
+    setIsLoading(true);
     try {
-      const response = await fetch(`/api/specifications/${updatedSpec.id}`, {
+      await fetchApi(`/api/specifications/${updatedSpec.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -53,47 +47,36 @@ const ContractSpecification = ({ contract, onUpdate }) => {
         body: JSON.stringify(updatedSpec),
       });
 
-      if (!response.ok) {
-        throw new Error('Помилка при оновленні специфікації');
-      }
-
       // Получаем обновленные спецификации
-      const specsResponse = await fetch(`/api/contracts/${contract.id}/specifications`);
-      const specifications = await specsResponse.json();
-
-      onUpdate({
-        ...contract,
-        specifications
-      });
+      const specifications = await fetchApi(`/api/contracts/${contract.id}/specifications`);
+      onUpdate({ ...contract, specifications });
     } catch (error) {
       console.error('Error updating specification:', error);
-      alert(error.message);
+      toast.error(error.message || 'Помилка при оновленні специфікації');
+    } finally {
+      setIsLoading(false);
+      setSelectedSpec(null);
     }
   };
 
   const handleDeleteSpecification = async (specId) => {
     if (!window.confirm('Видалити цю позицію?')) return;
 
+    setIsLoading(true);
     try {
-      const response = await fetch(`/api/specifications/${specId}`, {
+      await fetchApi(`/api/specifications/${specId}`, {
         method: 'DELETE',
       });
 
-      if (!response.ok) {
-        throw new Error('Помилка при видаленні специфікації');
-      }
-
       // Получаем обновленные спецификации
-      const specsResponse = await fetch(`/api/contracts/${contract.id}/specifications`);
-      const specifications = await specsResponse.json();
-
-      onUpdate({
-        ...contract,
-        specifications
-      });
+      const specifications = await fetchApi(`/api/contracts/${contract.id}/specifications`);
+      onUpdate({ ...contract, specifications });
+      toast.success('Специфікацію видалено');
     } catch (error) {
       console.error('Error deleting specification:', error);
-      alert(error.message);
+      toast.error(error.message || 'Помилка при видаленні специфікації');
+    } finally {
+      setIsLoading(false);
     }
   };
 

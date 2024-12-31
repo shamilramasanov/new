@@ -90,10 +90,58 @@ export default async function handle(req, res) {
           return res.status(400).json({ error: 'Загальна сума специфікацій перевищує суму договору' });
         }
 
-        // Для КЕКВ 2240 проверяем обязательные поля
+        // Для КЕКВ 2240 проверяем обязательные поля и создаем/связываем автомобиль
         if (contract.kekv.code === '2240') {
+          console.log('Processing KEKV 2240 specification:', { vehicleBrand, vehicleVin, vehicleLocation });
+          
           if (!vehicleBrand || !vehicleVin || !vehicleLocation) {
             throw new Error('Для КЕКВ 2240 обов\'язково вказати марку, в/н та місце дислокації автомобіля');
+          }
+
+          try {
+            // Создаем/обновляем автомобиль в отдельной транзакции
+            const vehicleResult = await prisma.$transaction(async (tx) => {
+              console.log('Looking for existing vehicle with VIN:', vehicleVin);
+              
+              // Ищем существующий автомобиль по VIN или создаем новый
+              const vehicle = await tx.vehicle.upsert({
+                where: { vin: vehicleVin },
+                update: {
+                  brand: vehicleBrand,
+                  location: vehicleLocation
+                },
+                create: {
+                  number: vehicleVin, // Используем VIN как номер, если нет бортового
+                  brand: vehicleBrand,
+                  model: 'Не вказано',
+                  vin: vehicleVin,
+                  location: vehicleLocation
+                }
+              });
+              
+              console.log('Vehicle upserted:', vehicle);
+
+              // Связываем автомобиль с договором, если еще не связан
+              if (!contract.vehicleId) {
+                console.log('Linking vehicle to contract:', { contractId: id, vehicleId: vehicle.id });
+                
+                const updatedContract = await tx.contract.update({
+                  where: { id },
+                  data: {
+                    vehicleId: vehicle.id
+                  }
+                });
+                
+                console.log('Contract updated with vehicle:', updatedContract);
+              }
+
+              return vehicle;
+            });
+
+            console.log('Vehicle transaction completed successfully:', vehicleResult);
+          } catch (error) {
+            console.error('Error processing vehicle:', error);
+            throw new Error(`Помилка при обробці автомобіля: ${error.message}`);
           }
         }
 
