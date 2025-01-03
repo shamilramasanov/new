@@ -192,47 +192,13 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
           </div>
         </div>
 
-        <div className={styles.actions}>
-          <button
-            onClick={() => router.push(`/vehicles/${vehicleData.id}/edit`)}
-            className={styles.secondaryButton}
-          >
-            Редагувати
-          </button>
-          <Link
-            href={`/contracts/new?vehicleId=${vehicleData.id}`}
-            className={styles.primaryButton}
-          >
-            Додати ремонт
-          </Link>
-          <button 
-            onClick={() => router.push(`/vehicles/${vehicleData.id}/mileage`)}
-            className={styles.secondaryButton}
-          >
-            Історія пробігу
-          </button>
-        </div>
-      </div>
-
-      <div className={styles.repairsSection}>
-        <div className={styles.repairsHeader}>
-          <h2 className={styles.repairsTitle}>Договори на ремонт</h2>
-          <Link
-            href={`/contracts/new?vehicleId=${vehicleData.id}`}
-            className={styles.primaryButton}
-          >
-            Додати договір
-          </Link>
-        </div>
-
-        {repairsData?.length > 0 ? (
-          <div className={styles.repairsList}>
+        <div className="mt-8">
+          <div className="space-y-4">
             {repairsData.map((repair) => (
               <div key={repair.id} className={styles.repairCard}>
                 <div 
-                  className={styles.repairHeader}
+                  className={styles.repairHeader} 
                   onClick={() => toggleContract(repair.id)}
-                  style={{ cursor: 'pointer' }}
                 >
                   <div className={styles.repairInfo}>
                     <h3 className={styles.repairNumber}>
@@ -260,33 +226,7 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
                 
                 {expandedContracts.has(repair.id) && (
                   <div className="mt-4 space-y-4">
-                    {/* Кнопки действий */}
-                    <div className="flex justify-end space-x-2 mb-4">
-                      <Link
-                        href={`/contracts/${repair.id}`}
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                      >
-                        Переглянути договір
-                      </Link>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const response = await fetch(`/api/contracts/${repair.id}`);
-                            const contractData = await response.json();
-                            setSelectedContract(contractData);
-                            setShowCreateActModal(true);
-                          } catch (error) {
-                            console.error('Error fetching contract:', error);
-                            alert('Помилка при завантаженні даних договору');
-                          }
-                        }}
-                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-                      >
-                        Створити акт
-                      </button>
-                    </div>
-
-                    {/* Услуги */}
+                    {/* Специфікації */}
                     {repair.specifications?.filter(spec => spec.type === 'service').length > 0 && (
                       <div>
                         <h4 className="font-medium mb-2">Послуги</h4>
@@ -319,7 +259,6 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
                       </div>
                     )}
 
-                    {/* Запчасти */}
                     {repair.specifications?.filter(spec => spec.type === 'part').length > 0 && (
                       <div className="mt-4">
                         <h4 className="font-medium mb-2">Запчастини</h4>
@@ -452,29 +391,17 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
               </div>
             ))}
           </div>
-        ) : (
-          <div className={styles.emptyState}>
-            <p>Ще немає договорів на ремонт для цього автомобіля</p>
-            <Link
-              href={`/contracts/new?vehicleId=${vehicleData.id}`}
-              className={styles.primaryButton}
-            >
-              Додати перший договір
-            </Link>
-          </div>
+        </div>
+
+        {showCreateActModal && selectedContract && (
+          <CreateActModal
+            isOpen={showCreateActModal}
+            onClose={() => setShowCreateActModal(false)}
+            contract={selectedContract}
+            onSubmit={handleCreateAct}
+          />
         )}
       </div>
-
-      {showCreateActModal && selectedContract && (
-        <CreateActModal
-          contract={selectedContract}
-          onClose={() => {
-            setShowCreateActModal(false);
-            setSelectedContract(null);
-          }}
-          onSubmit={handleCreateAct}
-        />
-      )}
     </div>
   );
 }
