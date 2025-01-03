@@ -218,12 +218,6 @@ export default async function handle(req, res) {
                   });
                 }
 
-                // Обновляем договор, устанавливая связь с автомобилем
-                await prisma.contract.update({
-                  where: { id: newContract.id },
-                  data: { vehicleId: vehicleRecord.id }
-                });
-
                 // Обновляем все спецификации для этого автомобиля
                 await prisma.specification.updateMany({
                   where: {
@@ -235,7 +229,7 @@ export default async function handle(req, res) {
                   }
                 });
 
-                console.log('Договор и спецификации обновлены с привязкой к автомобилю:', vehicleRecord.id);
+                console.log('Спецификации обновлены с привязкой к автомобилю:', vehicleRecord.id);
               } catch (error) {
                 console.error('Ошибка при создании/обновлении автомобиля:', error);
                 throw error;

@@ -38,6 +38,8 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
     }
   }, [vehicle, vehicleId]);
 
+  
+  
   const toggleContract = (contractId) => {
     setExpandedContracts(prev => {
       const next = new Set(prev);
@@ -50,34 +52,32 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
     });
   };
 
-  const handleCreateAct = async (formData) => {
+  const handleCreateAct = async (actData) => {
     try {
-      const response = await fetch('/api/acts', {
+      const response = await fetch(`/api/acts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...formData,
-          contractId: selectedContract.id,
-        }),
+        body: JSON.stringify(actData),
       });
 
       if (!response.ok) {
         throw new Error('Failed to create act');
       }
 
-      // Обновляем данные на странице
-      const repairsResponse = await fetch(`/api/vehicles/${id}/repairs`);
-      const repairsData = await repairsResponse.json();
-      setRepairsData(repairsData);
+      // Оновлюємо дані на сторінці
+      const vehicleResponse = await fetch(`/api/vehicles/${id}`);
+      const vehicleData = await vehicleResponse.json();
+      setVehicleData(vehicleData);
+      setRepairsData(vehicleData.repairs || []);
 
-      // Закрываем модальное окно
+      // Закриваємо модальне вікно
       setShowCreateActModal(false);
       setSelectedContract(null);
     } catch (error) {
       console.error('Error creating act:', error);
-      alert('Помилка при створенні акту');
+      // Тут можна додати відображення помилки користувачу
     }
   };
 
@@ -298,13 +298,13 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
                             {repair.specifications
                               .filter(spec => spec.type === 'service')
                               .map((spec, index) => (
-                                <tr key={spec.id}>
+                                <tr key={spec.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
                                   <td className="px-4 py-2">{spec.name}</td>
                                   <td className="px-4 py-2">{spec.unit}</td>
                                   <td className="px-4 py-2 text-right">{spec.quantity}</td>
-                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.price)}</td>
+                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.price)} ₴</td>
                                   <td className="px-4 py-2 text-right">{spec.serviceCount}</td>
-                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.amount)}</td>
+                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.amount)} ₴</td>
                                 </tr>
                               ))}
                           </tbody>
@@ -314,12 +314,11 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
 
                     {/* Запчасти */}
                     {repair.specifications?.filter(spec => spec.type === 'part').length > 0 && (
-                      <div>
+                      <div className="mt-4">
                         <h4 className="font-medium mb-2">Запчастини</h4>
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead>
                             <tr>
-                              <th className="px-4 py-2 text-left">Код</th>
                               <th className="px-4 py-2 text-left">Найменування</th>
                               <th className="px-4 py-2 text-left">Од. виміру</th>
                               <th className="px-4 py-2 text-right">К-сть</th>
@@ -331,13 +330,12 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
                             {repair.specifications
                               .filter(spec => spec.type === 'part')
                               .map((spec, index) => (
-                                <tr key={spec.id}>
-                                  <td className="px-4 py-2">{spec.code}</td>
+                                <tr key={spec.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
                                   <td className="px-4 py-2">{spec.name}</td>
                                   <td className="px-4 py-2">{spec.unit}</td>
                                   <td className="px-4 py-2 text-right">{spec.quantity}</td>
-                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.price)}</td>
-                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.amount)}</td>
+                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.price)} ₴</td>
+                                  <td className="px-4 py-2 text-right">{formatCurrency(spec.amount)} ₴</td>
                                 </tr>
                               ))}
                           </tbody>
@@ -387,28 +385,25 @@ export async function getServerSideProps({ params }) {
   }
 
   try {
-    const [vehicleResponse, repairsResponse] = await Promise.all([
-      fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/api/vehicles/${params.id}`),
-      fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/api/vehicles/${params.id}/repairs`)
-    ]);
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000';
+    
+    const vehicleResponse = await fetch(`${baseUrl}/api/vehicles/${params.id}`);
 
-    if (!vehicleResponse.ok || !repairsResponse.ok) {
+    if (!vehicleResponse.ok) {
       console.error('Failed to fetch data:', {
-        vehicleStatus: vehicleResponse.status,
-        repairsStatus: repairsResponse.status
+        vehicleStatus: vehicleResponse.status
       });
       throw new Error('Failed to fetch data');
     }
 
-    const [vehicle, repairs] = await Promise.all([
-      vehicleResponse.json(),
-      repairsResponse.json()
-    ]);
+    const vehicleData = await vehicleResponse.json();
 
     return {
       props: {
-        vehicle,
-        repairs,
+        vehicle: vehicleData,
+        repairs: vehicleData.repairs || [],
       },
     };
   } catch (error) {
