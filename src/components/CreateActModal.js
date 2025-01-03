@@ -28,10 +28,11 @@ export default function CreateActModal({ contract, onClose, onSubmit }) {
         code: spec.code,
         unit: spec.unit,
         price: spec.price,
-        maxQuantity: spec.type === 'service' ? spec.serviceCount : spec.quantity,
+        maxQuantity: spec.quantity, // Максимальное количество из спецификации
         quantity: 0,
         amount: 0,
         isService: spec.type === 'service',
+        serviceCount: spec.serviceCount,
         selected: false
       }));
       
@@ -39,6 +40,16 @@ export default function CreateActModal({ contract, onClose, onSubmit }) {
       setLoading(false);
     }
   }, [contract]);
+
+  const calculateAmount = (item, quantity) => {
+    if (item.isService) {
+      // Для работ: количество (норма часов) * цена
+      return quantity * item.price;
+    } else {
+      // Для запчастей: количество * цена
+      return quantity * item.price;
+    }
+  };
 
   const handleItemChange = (index, field, value) => {
     setFormData(prev => {
@@ -52,15 +63,21 @@ export default function CreateActModal({ contract, onClose, onSubmit }) {
           item.quantity = 0;
           item.amount = 0;
         } else {
-          // При выборе позиции устанавливаем количество 1
-          item.quantity = 1;
-          item.amount = item.price;
+          // При выборе позиции устанавливаем количество
+          if (item.isService) {
+            // Для работ устанавливаем норму часов из спецификации
+            item.quantity = item.maxQuantity;
+          } else {
+            // Для запчастей устанавливаем количество 1
+            item.quantity = 1;
+          }
+          item.amount = calculateAmount(item, item.quantity);
         }
       } else if (field === 'quantity') {
         // Ограничиваем количество максимальным доступным
         const newQuantity = Math.min(Math.max(0, value), item.maxQuantity);
         item.quantity = newQuantity;
-        item.amount = newQuantity * item.price;
+        item.amount = calculateAmount(item, newQuantity);
       }
 
       return { ...prev, items: newItems };
@@ -78,6 +95,7 @@ export default function CreateActModal({ contract, onClose, onSubmit }) {
 
     const submitData = {
       ...formData,
+      contractId: contract.id, // Додаємо ID договору
       items: selectedItems,
     };
 
@@ -107,123 +125,117 @@ export default function CreateActModal({ contract, onClose, onSubmit }) {
           </div>
 
           <form onSubmit={handleSubmit}>
-            {/* Услуги */}
+            {/* Таблиця робіт */}
             {services.length > 0 && (
-              <div className="mb-4">
-                <h3 className="text-base font-semibold mb-2">Послуги</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                      <tr>
-                        <th className="px-2 py-1 text-xs"></th>
-                        <th className="px-2 py-1 text-xs text-left">Найменування</th>
-                        <th className="px-2 py-1 text-xs text-left">Од. виміру</th>
-                        <th className="px-2 py-1 text-xs text-right">Доступно</th>
-                        <th className="px-2 py-1 text-xs text-right">Кількість</th>
-                        <th className="px-2 py-1 text-xs text-right">Ціна</th>
-                        <th className="px-2 py-1 text-xs text-right">Сума</th>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-2">Роботи</h3>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2"></th>
+                      <th className="px-4 py-2 text-left">Найменування</th>
+                      <th className="px-4 py-2 text-right">Норма годин</th>
+                      <th className="px-4 py-2 text-right">Ціна за годину</th>
+                      <th className="px-4 py-2 text-right">Сума</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {services.map((item, index) => (
+                      <tr key={item.specificationId} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            checked={item.selected}
+                            onChange={(e) => handleItemChange(
+                              formData.items.indexOf(item),
+                              'selected',
+                              e.target.checked
+                            )}
+                          />
+                        </td>
+                        <td className="px-4 py-2">{item.name}</td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max={item.maxQuantity}
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(
+                              formData.items.indexOf(item),
+                              'quantity',
+                              parseFloat(e.target.value) || 0
+                            )}
+                            disabled={!item.selected}
+                            className="w-20 text-right border rounded px-2 py-1"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right">{formatCurrency(item.price)} ₴</td>
+                        <td className="px-4 py-2 text-right">{formatCurrency(item.amount)} ₴</td>
                       </tr>
-                    </thead>
-                    <tbody className="text-sm">
-                      {services.map((item, index) => (
-                        <tr key={item.specificationId} className="hover:bg-gray-50">
-                          <td className="px-2 py-1">
-                            <input
-                              type="checkbox"
-                              checked={item.selected}
-                              onChange={(e) => handleItemChange(index, 'selected', e.target.checked)}
-                              className="rounded border-gray-300 h-4 w-4"
-                            />
-                          </td>
-                          <td className="px-2 py-1">{item.name}</td>
-                          <td className="px-2 py-1">{item.unit}</td>
-                          <td className="px-2 py-1 text-right">{item.maxQuantity}</td>
-                          <td className="px-2 py-1">
-                            <input
-                              type="number"
-                              min="0"
-                              max={item.maxQuantity}
-                              value={item.quantity}
-                              onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value))}
-                              disabled={!item.selected}
-                              className="w-16 text-right rounded border-gray-300 text-sm p-1"
-                            />
-                          </td>
-                          <td className="px-2 py-1 text-right">{formatCurrency(item.price)}</td>
-                          <td className="px-2 py-1 text-right">{formatCurrency(item.amount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
 
-            {/* Запчасти */}
+            {/* Таблиця запчастин */}
             {parts.length > 0 && (
-              <div className="mb-4">
-                <h3 className="text-base font-semibold mb-2">Запчастини</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                      <tr>
-                        <th className="px-2 py-1 text-xs"></th>
-                        <th className="px-2 py-1 text-xs text-left">Код</th>
-                        <th className="px-2 py-1 text-xs text-left">Найменування</th>
-                        <th className="px-2 py-1 text-xs text-left">Од. виміру</th>
-                        <th className="px-2 py-1 text-xs text-right">Доступно</th>
-                        <th className="px-2 py-1 text-xs text-right">Кількість</th>
-                        <th className="px-2 py-1 text-xs text-right">Ціна</th>
-                        <th className="px-2 py-1 text-xs text-right">Сума</th>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-2">Запчастини</h3>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2"></th>
+                      <th className="px-4 py-2 text-left">Найменування</th>
+                      <th className="px-4 py-2 text-right">Кількість</th>
+                      <th className="px-4 py-2 text-right">Ціна</th>
+                      <th className="px-4 py-2 text-right">Сума</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parts.map((item, index) => (
+                      <tr key={item.specificationId} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            checked={item.selected}
+                            onChange={(e) => handleItemChange(
+                              formData.items.indexOf(item),
+                              'selected',
+                              e.target.checked
+                            )}
+                          />
+                        </td>
+                        <td className="px-4 py-2">{item.name}</td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.maxQuantity}
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(
+                              formData.items.indexOf(item),
+                              'quantity',
+                              parseInt(e.target.value) || 0
+                            )}
+                            disabled={!item.selected}
+                            className="w-20 text-right border rounded px-2 py-1"
+                          />
+                          <span className="ml-2">{item.unit}</span>
+                        </td>
+                        <td className="px-4 py-2 text-right">{formatCurrency(item.price)} ₴</td>
+                        <td className="px-4 py-2 text-right">{formatCurrency(item.amount)} ₴</td>
                       </tr>
-                    </thead>
-                    <tbody className="text-sm">
-                      {parts.map((item, index) => (
-                        <tr key={item.specificationId} className="hover:bg-gray-50">
-                          <td className="px-2 py-1">
-                            <input
-                              type="checkbox"
-                              checked={item.selected}
-                              onChange={(e) => handleItemChange(
-                                formData.items.indexOf(item),
-                                'selected',
-                                e.target.checked
-                              )}
-                              className="rounded border-gray-300 h-4 w-4"
-                            />
-                          </td>
-                          <td className="px-2 py-1">{item.code}</td>
-                          <td className="px-2 py-1">{item.name}</td>
-                          <td className="px-2 py-1">{item.unit}</td>
-                          <td className="px-2 py-1 text-right">{item.maxQuantity}</td>
-                          <td className="px-2 py-1">
-                            <input
-                              type="number"
-                              min="0"
-                              max={item.maxQuantity}
-                              value={item.quantity}
-                              onChange={(e) => handleItemChange(
-                                formData.items.indexOf(item),
-                                'quantity',
-                                parseInt(e.target.value)
-                              )}
-                              disabled={!item.selected}
-                              className="w-16 text-right rounded border-gray-300 text-sm p-1"
-                            />
-                          </td>
-                          <td className="px-2 py-1 text-right">{formatCurrency(item.price)}</td>
-                          <td className="px-2 py-1 text-right">{formatCurrency(item.amount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
 
             <div className="flex justify-between items-center mt-6">
               <div className="text-xl font-bold">
-                Загальна сума: {formatCurrency(totalAmount)}
+                Загальна сума: {formatCurrency(totalAmount)} ₴
               </div>
               <div className="space-x-3">
                 <button

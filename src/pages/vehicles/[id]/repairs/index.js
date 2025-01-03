@@ -12,6 +12,7 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
   const [showCreateActModal, setShowCreateActModal] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
   const [expandedContracts, setExpandedContracts] = useState(new Set());
+  const [expandedActs, setExpandedActs] = useState(new Set());
   const [id, setId] = useState(vehicleId);
   const [repairsData, setRepairsData] = useState(repairs || []);
   const [vehicleData, setVehicleData] = useState(vehicle || null);
@@ -38,18 +39,24 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
     }
   }, [vehicle, vehicleId]);
 
-  
-  
   const toggleContract = (contractId) => {
-    setExpandedContracts(prev => {
-      const next = new Set(prev);
-      if (next.has(contractId)) {
-        next.delete(contractId);
-      } else {
-        next.add(contractId);
-      }
-      return next;
-    });
+    const newExpanded = new Set(expandedContracts);
+    if (newExpanded.has(contractId)) {
+      newExpanded.delete(contractId);
+    } else {
+      newExpanded.add(contractId);
+    }
+    setExpandedContracts(newExpanded);
+  };
+
+  const toggleAct = (actId) => {
+    const newExpanded = new Set(expandedActs);
+    if (newExpanded.has(actId)) {
+      newExpanded.delete(actId);
+    } else {
+      newExpanded.add(actId);
+    }
+    setExpandedActs(newExpanded);
   };
 
   const handleCreateAct = async (actData) => {
@@ -245,7 +252,7 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
                     <span className={styles.repairAmount}>
                       {formatCurrency(repair.amount)} ₴
                       <span className="text-sm text-gray-500 ml-2">
-                        (Залишок: {formatCurrency(repair.amount - (repair.acts?.filter(act => act.status === 'ACTIVE').reduce((sum, act) => sum + act.totalAmount, 0) || 0))} ₴)
+                        (Використано: {formatCurrency(repair.usedAmount)} ₴)
                       </span>
                     </span>
                   </div>
@@ -330,7 +337,7 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
                             {repair.specifications
                               .filter(spec => spec.type === 'part')
                               .map((spec, index) => (
-                                <tr key={spec.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
+                                <tr key={spec.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                                   <td className="px-4 py-2">{spec.name}</td>
                                   <td className="px-4 py-2">{spec.unit}</td>
                                   <td className="px-4 py-2 text-right">{spec.quantity}</td>
@@ -342,8 +349,106 @@ export default function VehicleRepairsPage({ vehicle, repairs, error }) {
                         </table>
                       </div>
                     )}
+
+                    {/* Акти */}
+                    {repair.acts?.length > 0 && (
+                      <div className="mt-6">
+                        <h4 className="font-medium mb-2">Акти виконаних робіт</h4>
+                        <div className="space-y-4">
+                          {repair.acts.map((act) => (
+                            <div key={act.id} className="border rounded-lg p-4 bg-gray-50">
+                              <div 
+                                className="flex justify-between items-center cursor-pointer"
+                                onClick={() => toggleAct(act.id)}
+                              >
+                                <div>
+                                  <h5 className="font-medium">
+                                    Акт №{act.number || 'б/н'} 
+                                    {act.date && ` від ${new Date(act.date).toLocaleDateString()}`}
+                                  </h5>
+                                  <p className="text-sm text-gray-600">
+                                    Сума: {formatCurrency(act.totalAmount)} ₴
+                                  </p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className={`px-3 py-1 rounded text-sm ${
+                                    act.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                    act.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                                    'bg-blue-100 text-blue-800'
+                                  }`}>
+                                    {act.status === 'PENDING' ? 'На погодженні' :
+                                     act.status === 'ACTIVE' ? 'Активний' :
+                                     'Оплачено'}
+                                  </span>
+                                  <svg
+                                    className={`w-5 h-5 transition-transform ${
+                                      expandedActs.has(act.id) ? 'transform rotate-180' : ''
+                                    }`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M19 9l-7 7-7-7"
+                                    />
+                                  </svg>
+                                </div>
+                              </div>
+
+                              {/* Позиції акту */}
+                              {expandedActs.has(act.id) && (
+                                <div className="mt-4">
+                                  <table className="min-w-full divide-y divide-gray-200">
+                                    <thead>
+                                      <tr>
+                                        <th className="px-4 py-2 text-left">Найменування</th>
+                                        <th className="px-4 py-2 text-right">К-сть</th>
+                                        <th className="px-4 py-2 text-right">Ціна</th>
+                                        <th className="px-4 py-2 text-right">Сума</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {act.actItems.map((item, index) => (
+                                        <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                          <td className="px-4 py-2">{item.specification.name}</td>
+                                          <td className="px-4 py-2 text-right">
+                                            {item.quantity}
+                                            {item.specification.type === 'service' && item.serviceCount && 
+                                              ` (${item.serviceCount} обсл.)`
+                                            }
+                                          </td>
+                                          <td className="px-4 py-2 text-right">
+                                            {formatCurrency(item.specification.price)} ₴
+                                          </td>
+                                          <td className="px-4 py-2 text-right">
+                                            {formatCurrency(item.amount)} ₴
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                    <tfoot>
+                                      <tr className="font-medium">
+                                        <td colSpan="3" className="px-4 py-2 text-right">
+                                          Загальна сума:
+                                        </td>
+                                        <td className="px-4 py-2 text-right">
+                                          {formatCurrency(act.totalAmount)} ₴
+                                        </td>
+                                      </tr>
+                                    </tfoot>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                )} 
               </div>
             ))}
           </div>

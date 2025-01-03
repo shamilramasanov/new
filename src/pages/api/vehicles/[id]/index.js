@@ -14,7 +14,19 @@ export default async function handler(req, res) {
             include: {
               contract: {
                 include: {
-                  kekv: true
+                  kekv: true,
+                  acts: {
+                    include: {
+                      actItems: {
+                        include: {
+                          specification: true
+                        }
+                      }
+                    },
+                    orderBy: {
+                      createdAt: 'desc'
+                    }
+                  }
                 }
               }
             }
@@ -57,10 +69,11 @@ export default async function handler(req, res) {
 
           return {
             id: contract.id,
-            contractNumber: contract.number,
-            date: contract.startDate,
+            number: contract.number,
+            startDate: contract.startDate,
             endDate: contract.endDate,
             amount: vehicleAmount,
+            usedAmount: contract.usedAmount || 0,
             status: contract.status,
             contractor: contract.contractor,
             specifications: vehicleSpecs.map(spec => ({
@@ -72,7 +85,8 @@ export default async function handler(req, res) {
               unit: spec.unit,
               type: spec.type,
               serviceCount: spec.serviceCount
-            }))
+            })),
+            acts: contract.acts || []
           };
         }).filter(contract => contract.specifications.length > 0) // Убираем договоры без спецификаций для этого автомобиля
       };

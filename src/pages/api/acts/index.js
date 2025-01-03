@@ -36,15 +36,17 @@ export default async function handle(req, res) {
         const { contractId, number, date, items } = req.body;
         const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
 
-        // Создаем акт и обновляем договор в одной транзакции
+        // Створюємо акт і оновлюємо договір в одній транзакції
         const newAct = await prisma.$transaction(async (prisma) => {
-          // Создаем акт
+          // Створюємо акт
           const act = await prisma.act.create({
             data: {
               ...(number && { number }),
               ...(date && { date: new Date(date) }),
-              contractId,
               totalAmount,
+              contract: {
+                connect: { id: contractId }
+              },
               actItems: {
                 create: items.map(item => ({
                   specificationId: item.specificationId,
@@ -74,6 +76,16 @@ export default async function handle(req, res) {
                 },
               },
             },
+          });
+
+          // Оновлюємо використану суму в договорі
+          await prisma.contract.update({
+            where: { id: contractId },
+            data: {
+              usedAmount: {
+                increment: totalAmount
+              }
+            }
           });
 
           return act;
