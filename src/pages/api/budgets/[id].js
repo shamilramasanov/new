@@ -36,20 +36,83 @@ export default async function handle(req, res) {
 
       case 'DELETE':
         try {
-          // Сначала удаляем все связи между бюджетом и КЕКВ
+          // Отримуємо всі договори цього кошторису з їх специфікаціями, автомобілями та товарами зі складу
+          const budgetWithRelations = await prisma.budget.findUnique({
+            where: { id },
+            include: {
+              contracts: {
+                include: {
+                  specifications: {
+                    include: {
+                      vehicle: true,
+                      inventoryItem: true
+                    }
+                  }
+                }
+              }
+            }
+          });
+
+          // Збираємо унікальні ID автомобілів та товарів зі складу
+          const vehicleIds = new Set();
+          const inventoryItemIds = new Set();
+          
+          budgetWithRelations.contracts.forEach(contract => {
+            contract.specifications.forEach(spec => {
+              if (spec.vehicleId) {
+                vehicleIds.add(spec.vehicleId);
+              }
+              if (spec.inventoryItemId) {
+                inventoryItemIds.add(spec.inventoryItemId);
+              }
+            });
+          });
+
+          // Видаляємо всі пов'язані автомобілі
+          if (vehicleIds.size > 0) {
+            await prisma.vehicle.deleteMany({
+              where: {
+                id: {
+                  in: Array.from(vehicleIds)
+                }
+              }
+            });
+          }
+
+          // Видаляємо всі пов'язані товари зі складу
+          if (inventoryItemIds.size > 0) {
+            await prisma.inventoryItem.deleteMany({
+              where: {
+                id: {
+                  in: Array.from(inventoryItemIds)
+                }
+              }
+            });
+          }
+
+          // Видаляємо всі зв'язки між бюджетом і КЕКВ
           await prisma.budgetKekv.deleteMany({
             where: { budgetId: id },
-          })
+          });
 
-          // Затем удаляем сам кошторис
+          // Видаляємо сам кошторис (це також видалить всі пов'язані договори через onDelete: Cascade)
           const deletedBudget = await prisma.budget.delete({
             where: { id },
-          })
+          });
 
-          return res.json(deletedBudget)
+          return res.json({ 
+            success: true, 
+            message: 'Кошторис та пов\'язані дані видалено успішно',
+            deletedVehicles: vehicleIds.size,
+            deletedInventoryItems: inventoryItemIds.size,
+            budget: deletedBudget 
+          });
         } catch (error) {
-          console.error('Error deleting budget:', error)
-          return res.status(500).json({ error: 'Error deleting budget' })
+          console.error('Error deleting budget:', error);
+          return res.status(500).json({ 
+            error: 'Помилка при видаленні кошторису', 
+            details: error.message 
+          });
         }
 
       default:

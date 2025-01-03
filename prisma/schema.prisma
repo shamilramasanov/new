@@ -73,7 +73,7 @@ model Vehicle {
   location    String?   // Місце дислокації
   imageUrl    String?   // URL фотографії
   contracts   Contract[]
-  specifications Specification[]
+  specifications Specification[] @relation("VehicleSpecifications")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
@@ -95,9 +95,9 @@ model Contract {
   budgetId      String
   kekv          KEKV           @relation(fields: [kekvId], references: [id], onDelete: Cascade)
   kekvId        String
-  vehicle       Vehicle?        @relation(fields: [vehicleId], references: [id])
+  vehicle       Vehicle?        @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   vehicleId     String?
-  specifications Specification[]
+  specifications Specification[] @relation("ContractSpecifications")
   acts          Act[]          // Акти виконаних робіт
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
@@ -114,12 +114,14 @@ model Specification {
   serviceCount  Int      @default(1)
   type          String   @default("part") // "service" або "part"
   contractId    String
-  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  vehicle       Vehicle? @relation(fields: [vehicleId], references: [id])
+  contract      Contract @relation("ContractSpecifications", fields: [contractId], references: [id], onDelete: Cascade)
+  vehicle       Vehicle? @relation("VehicleSpecifications", fields: [vehicleId], references: [id], onDelete: SetNull)
   vehicleId     String?
   vehicleBrand  String?
   vehicleVin    String?
   vehicleLocation String?
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  inventoryItemId String?
   actItems      ActItem[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -128,13 +130,13 @@ model Specification {
 // Модель для актів виконаних робіт
 model Act {
   id            String    @id @default(cuid())
-  number        String?   // Номер акту (опціонально, заповняється при активації)
-  date          DateTime? // Дата акту (опціонально, заповняється при активації)
+  number        String?   // Номер акту
+  date          DateTime? // Дата акту
   contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
   contractId    String
   actItems      ActItem[] // Позиції акту
   totalAmount   Float     // Загальна сума
-  status        String    @default("PENDING") // Статус акту (PENDING - на погодженні, ACTIVE - активний, PAID - оплачено)
+  status        String    @default("PENDING")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -146,9 +148,9 @@ model ActItem {
   actId           String
   specification   Specification @relation(fields: [specificationId], references: [id], onDelete: Cascade)
   specificationId String
-  quantity        Float         // Фактична кількість
-  serviceCount    Int?          // Номер обслуговування (для послуг)
-  amount          Float         // Сума
+  quantity        Float
+  serviceCount    Int?
+  amount          Float
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }
@@ -186,11 +188,12 @@ model InventoryItem {
   quantity    Float     // Количество
   minQuantity Float?    // Минимальное количество (для уведомлений)
   price       Float?    // Цена за единицу
-  category    InventoryCategory @relation(fields: [categoryId], references: [id])
+  category    InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId  String
   unit        Unit      @relation(fields: [unitId], references: [id])
   unitId      String
   location    String?   // Место хранения
+  specifications Specification[] // Связь со спецификациями
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
